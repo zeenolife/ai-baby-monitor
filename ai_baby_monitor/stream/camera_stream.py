@@ -23,7 +23,6 @@ class CameraStream:
     def __init__(
         self,
         uri: str | int,
-        target_fps: int = 8,
         save_stream_path: str | None = None,
         frame_shape: tuple[int, int] | None = None,
     ):
@@ -32,16 +31,12 @@ class CameraStream:
 
         Args:
             uri: Camera URI or device index
-            target_fps: Target FPS to capture stream at
             save_stream_path: Path to save the stream
             frame_shape: Frame shape to capture. Would be resized to this shape if provided.
         """
         self.frame_shape = frame_shape
-        self.target_fps = target_fps
         self.capture = self._init_capture(uri)
         self.stream_writer = self._init_stream_writer(save_stream_path)
-
-        self.last_capture = dt.datetime.now()
         self.frame_idx = 0
 
     def _init_capture(self, uri: str | int, max_retries: int = 3) -> cv2.VideoCapture:
@@ -69,34 +64,29 @@ class CameraStream:
         if save_stream_path:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(
-                save_stream_path, fourcc, self.target_fps, self.frame_shape
+                save_stream_path, fourcc, self.capture.get(cv2.CAP_PROP_FPS), self.frame_shape
             )
             return writer
         else:
             return None
 
-    def capture_frame(self, at_target_fps: bool = True) -> Frame | None:
-        """Capture a frame from the camera at target FPS with a sleep."""
-
-        # Sleep if needed
-        current_time = dt.datetime.now()
-        elapsed = current_time - self.last_capture
-        sleep_time = 1.0 / self.target_fps - elapsed
-        if sleep_time > 0 and at_target_fps:
-            time.sleep(sleep_time)
-
-        self.last_capture = dt.datetime.now()
-
-        # Capture frame
-        ret, frame = self.capture.read()
-        if not ret:
-            logger.warning(
-                "Failed to capture frame from camera", datetime=self.last_capture
-            )
+    def capture_new_frame(self) -> Frame | None:
+        """Capture a new frame from the camera, only when available."""
+        # Check if a new frame is available
+        if not self.capture.grab():
+            logger.warning("No frame available to grab")
             return None
-
+            
+        # Retrieve the grabbed frame
+        ret, frame = self.capture.retrieve()
+        if not ret:
+            logger.warning("Failed to retrieve grabbed frame")
+            return None
+        
+        timestamp = dt.datetime.now()
+            
         # Resize frame if needed
-        if self.frame_shape and frame.shape != self.frame_shape:
+        if self.frame_shape and (frame.shape[1], frame.shape[0]) != self.frame_shape:
             frame = cv2.resize(frame, self.frame_shape)
 
         # Write frame to stream writer if it exists
@@ -106,9 +96,10 @@ class CameraStream:
         # Create frame object
         frame_obj = Frame(
             frame_data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
-            timestamp=dt.datetime.now(),
+            timestamp=timestamp,
             frame_idx=self.frame_idx,
         )
+        
         self.frame_idx += 1
         return frame_obj
 

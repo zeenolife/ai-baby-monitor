@@ -1,5 +1,5 @@
 import logging
-
+import datetime as dt
 import msgpack
 import numpy as np
 import redis
@@ -18,7 +18,7 @@ class RedisStreamHandler:
         stream_key: str,
         redis_host: str = "localhost",
         redis_port: int = 6379,
-        max_num_frames: int = 120,
+        max_num_frames: int = 150,
     ):
         """
         Handler for streaming camera frames to Redis.
@@ -59,19 +59,23 @@ class RedisStreamHandler:
     def deserialize_frame(frame_data: dict) -> Frame | None:
         """Deserialize a frame from Redis data."""
         try:
-            # Unpack the frame data
-            frame_info = msgpack.unpackb(frame_data["frame_bytes"])
+            # Unpack the frame data - Redis returns bytes for binary data
+            frame_bytes = frame_data[b"frame_bytes"]
+            frame_info = msgpack.unpackb(frame_bytes)
 
             # Reconstruct the numpy array
             frame_array = np.frombuffer(
                 frame_info["data"], dtype=np.dtype(frame_info["dtype"])
             ).reshape(frame_info["shape"])
 
+            # Convert timestamp string back to datetime
+            timestamp = dt.datetime.fromisoformat(frame_data[b"timestamp"].decode('utf-8'))
+
             # Create and return a Frame object
             return Frame(
                 frame_data=frame_array,
-                timestamp=frame_data["timestamp"],
-                frame_idx=frame_data["frame_idx"],
+                timestamp=timestamp,
+                frame_idx=int(frame_data[b"frame_idx"]),
             )
         except Exception as e:
             logger.error(f"Error deserializing frame: {e}")

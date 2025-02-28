@@ -6,7 +6,7 @@ from enum import Enum
 import numpy as np
 from vllm import LLM
 
-from ai_baby_monitor.camera_stream import CameraStream, Frame
+from ai_baby_monitor.stream.camera_stream import CameraStream, Frame
 from ai_baby_monitor.instructions import Instruction
 
 logger = logging.getLogger(__name__)
