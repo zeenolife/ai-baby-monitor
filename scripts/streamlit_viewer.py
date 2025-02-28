@@ -5,7 +5,7 @@ import time
 import streamlit as st
 from PIL import Image
 
-from ai_baby_monitor.stream.redis_stream import RedisStreamHandler
+from ai_baby_monitor import RedisStreamHandler
 
 # Configure logging
 logging.basicConfig(
@@ -52,7 +52,6 @@ def main():
         )
 
     redis_handler = RedisStreamHandler(
-        stream_key=redis_stream_key,
         redis_host=args.redis_host,
         redis_port=args.redis_port,
     )
@@ -65,7 +64,7 @@ def main():
     while True:
         # Get the latest frame
         start_time = time.time()
-        frames = redis_handler.get_latest_frames(count=1)
+        frames = redis_handler.get_latest_frames(f"{redis_stream_key}:realtime", count=1)
         end_time = time.time()
         logger.info(f"Time taken to get frames: {end_time - start_time} seconds")
 

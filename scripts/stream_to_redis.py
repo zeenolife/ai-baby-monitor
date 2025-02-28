@@ -18,8 +18,9 @@ def stream_to_redis(
     save_stream_path: str | None,
     frame_width: int | None,
     frame_height: int | None,
+    subsample_rate: int = 4,
 ):
-    """Stream camera frames to Redis."""
+    """Stream camera frames to Redis short realtime and long subsampled queues."""
     # Convert camera_uri to int if it's a digit (for webcam index)
     if camera_uri.isdigit():
         camera_uri = int(camera_uri)
@@ -33,6 +34,9 @@ def stream_to_redis(
     logger.info(
         f"Streaming to Redis key: {redis_stream_key} at {redis_host}:{redis_port}"
     )
+    logger.info(
+        f"Using subsample rate of 1 out of {subsample_rate} for subsampled queue"
+    )
 
     try:
         # Initialize camera stream
@@ -44,27 +48,30 @@ def stream_to_redis(
 
         # Initialize Redis stream handler
         redis_handler = RedisStreamHandler(
-            stream_key=redis_stream_key,
             redis_host=redis_host,
             redis_port=redis_port,
-            max_num_frames=max_frames,
         )
 
-        logger.info("Starting stream to redis.")
+        logger.info("Starting to stream to redis.")
 
         # Main streaming loop
         while True:
             # Only capture when a new frame is available
             frame = camera.capture_new_frame()
-
             if frame:
-                # Add frame to Redis
-                redis_handler.add_frame(frame)
-
-                # Log progress every 100 frames
-                logger.info(
-                    f"Streamed {frame.frame_idx + 1} frames. Frame timestamp: {frame.timestamp}"
+                # Always add frame to realtime queue
+                redis_handler.add_frame(
+                    frame, f"{redis_stream_key}:realtime", 3, approximate=False
                 )
+
+                # Add to subsampled queue every nth frame
+                if frame.frame_idx % subsample_rate == 0:
+                    redis_handler.add_frame(
+                        frame, f"{redis_stream_key}:subsampled", max_frames
+                    )
+                    logger.info(
+                        f"Added frame {frame.frame_idx} to subsampled queue. Timestamp: {frame.timestamp}"
+                    )
             else:
                 logger.warning("Failed to capture frame, retrying...")
                 time.sleep(0.01)
@@ -96,7 +103,7 @@ def parse_args():
     )
     parser.add_argument(
         "--max-frames",
-        default=150,
+        default=40,
         type=int,
         help="Maximum number of frames to keep in Redis",
     )
@@ -117,6 +124,12 @@ def parse_args():
         type=int,
         help="Frame height to resize to (optional)",
     )
+    parser.add_argument(
+        "--subsample-rate",
+        default=4,
+        type=int,
+        help="Rate at which to subsample frames for the subsampled queue (every Nth frame)",
+    )
 
     return parser.parse_args()
 
@@ -132,4 +145,5 @@ if __name__ == "__main__":
         save_stream_path=args.save_stream_path,
         frame_width=args.frame_width,
         frame_height=args.frame_height,
+        subsample_rate=args.subsample_rate,
     )

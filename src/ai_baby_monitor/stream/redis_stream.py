@@ -15,25 +15,18 @@ logger = logging.getLogger(__name__)
 class RedisStreamHandler:
     def __init__(
         self,
-        stream_key: str,
         redis_host: str = "localhost",
         redis_port: int = 6379,
-        max_num_frames: int = 150,
     ):
         """
         Handler for streaming camera frames to Redis.
 
         Args:
-            stream_key: Redis stream key to use
-
             redis_host: Redis server host
             redis_port: Redis server port
-            max_num_frames: Maximum number of frames to keep in the stream
         """
         self.redis_client = redis.Redis(host=redis_host, port=redis_port)
-        self.stream_key = stream_key
-        self.max_num_frames = max_num_frames
-        logger.info(f"Initialized Redis stream handler with key: {stream_key}")
+        logger.info(f"Initialized Redis stream handler on {redis_host}:{redis_port}")
 
     @staticmethod
     def serialize_frame(frame: Frame) -> dict:
@@ -69,7 +62,9 @@ class RedisStreamHandler:
             ).reshape(frame_info["shape"])
 
             # Convert timestamp string back to datetime
-            timestamp = dt.datetime.fromisoformat(frame_data[b"timestamp"].decode('utf-8'))
+            timestamp = dt.datetime.fromisoformat(
+                frame_data[b"timestamp"].decode("utf-8")
+            )
 
             # Create and return a Frame object
             return Frame(
@@ -81,25 +76,27 @@ class RedisStreamHandler:
             logger.error(f"Error deserializing frame: {e}")
             return None
 
-    def add_frame(self, frame: Frame) -> str:
+    def add_frame(
+        self, frame: Frame, key: str, maxlen: int, approximate: bool = True
+    ) -> str:
         """Add a frame to the Redis stream and trim if necessary."""
         # Serialize the frame
         data = self.serialize_frame(frame)
 
         # Add to Redis stream
         entry_id = self.redis_client.xadd(
-            name=self.stream_key,
+            name=key,
             fields=data,
-            maxlen=self.max_num_frames,
-            approximate=True,
+            maxlen=maxlen,
+            approximate=approximate,
         )
 
         return entry_id
 
-    def get_latest_frames(self, count: int = 1) -> list[Frame]:
+    def get_latest_frames(self, key: str, count: int = 1) -> list[Frame]:
         """Get the latest frames from the Redis stream."""
         # Get the latest entries from the stream
-        entries = self.redis_client.xrevrange(name=self.stream_key, count=count)
+        entries = self.redis_client.xrevrange(name=key, count=count)
 
         # Deserialize the frames
         frames = []
