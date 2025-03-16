@@ -1,6 +1,5 @@
 import logging
 import datetime as dt
-import msgpack
 import numpy as np
 import redis
 
@@ -69,10 +68,19 @@ class RedisStreamHandler:
     def add_frame(
         self, frame: Frame, key: str, maxlen: int, approximate: bool = True
     ) -> str:
-        """Add a frame to the Redis stream and trim if necessary."""
+        """Add a frame to the Redis stream and trim if necessary.
+        
+        Args:
+            frame: Frame object to add to the stream
+            key: Redis stream key
+            maxlen: Maximum length of the stream
+            approximate: Whether to use approximate length
+
+        Returns:
+            entry_id: ID of the added entry
+        """
         # Serialize the frame
         data = self.serialize_frame(frame)
-
         # Add to Redis stream
         entry_id = self.redis_client.xadd(
             name=key,

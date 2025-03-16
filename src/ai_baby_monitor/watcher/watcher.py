@@ -7,7 +7,7 @@ from pydantic import BaseModel, ValidationError
 from openai import OpenAI
 
 from ai_baby_monitor.stream.camera_stream import Frame
-
+from ai_baby_monitor.watcher.base_prompt import get_instructions_prompt
 logging.basicConfig(
     level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
 )
@@ -43,7 +43,9 @@ class Watcher:
             vllm_port: Port of the vLLM server
             model_name: Name of the model to use for inference
         """
-        self.instructions = instructions
+        self.instructions_prompt = get_instructions_prompt(instructions)
+        self.json_schema = WatcherResponse.model_json_schema()
+        
         self.vllm_host = vllm_host
         self.vllm_port = vllm_port
         self.model_name = model_name
@@ -68,25 +70,43 @@ class Watcher:
 
         return base64_frames
 
-    def process_frames(self, frames: list[Frame], fps: int = 2) -> dict[str, str | bool]:
-        """
-        Process a list of frames through the vLLM model to check for instruction violations.
+    def _calculate_fps(self, frames: list[Frame], default_fps: int = 2) -> int:
+        """Calculate FPS from frame timestamps, defaulting to 2 if calculation fails."""
+        if len(frames) < 2:
+            logger.warning("Too few frames to calculate FPS, using default of 2")
+            return default_fps
+            
+        try:
+            time_diff = (frames[-1].timestamp - frames[0].timestamp).total_seconds()
+            if time_diff <= 0:
+                return default_fps
+                
+            fps = round((len(frames) - 1) / time_diff)
+            
+            # Return default if calculated FPS is unreasonable
+            return default_fps if fps < 0.02 or fps > 60 else fps
+            
+        except Exception as e:
+            logger.warning(f"FPS calculation error: {e}")
+            return default_fps
 
-        Args:
-            frames: List of Frame objects to process
+    def process_frames(self, frames: list[Frame]) -> dict[str, str | bool]:
+        """Process frames to detect instruction violations.
 
         Returns:
-            dict: Results of the inference including alerts and reasoning
+            dict containing:
+                - success (bool): Whether processing completed successfully
+                - should_alert (bool): If an alert should be triggered
+                - reasoning (str): Explanation for the decision
+                - recommended_awareness_level (AwarenessLevel): Suggested monitoring level
+                - raw_response (str): Original model response
+                - error (str, optional): Error message if processing failed
         """
         if not frames:
             logger.warning("No frames provided for processing")
             return {
                 "success": False,
                 "error": "No frames provided",
-                "should_alert": False,
-                "reasoning": "No data to analyze",
-                "recommended_awareness_level": "MEDIUM",
-                "raw_response": "",
             }
 
         try:
@@ -94,21 +114,7 @@ class Watcher:
             base64_frames = self._frames_to_base64(frames)
 
             # Create video URL with proper format for vLLM
-            video_url = f"data:video/jpeg;base64,{','.join(base64_frames)}"
-
-            # Create instruction text
-            instruction_text = (
-                "You are given the following instructions: "
-                f"{', '.join(self.instructions)}.\n"
-                "If the instructions are violated, you should alert the user.\n"
-                "You should also recommend the awareness level based on the image.\n"
-                "Please respond with a JSON containing should_alert (boolean), reasoning (string), "
-                "and recommended_awareness_level (one of: LOW, MEDIUM, HIGH).\n"
-                "Always respond in English, regardless of the content in the images."
-            )
-
-            # Get JSON schema from Pydantic model
-            json_schema = WatcherResponse.model_json_schema()
+            encoded_video = f"data:video/jpeg;base64,{','.join(base64_frames)}"
 
             # Create message with instructions
             messages = [
@@ -116,8 +122,8 @@ class Watcher:
                 {
                     "role": "user",
                     "content": [
-                        {"type": "video_url", "video_url": {"url": video_url}},
-                        {"type": "text", "text": instruction_text},
+                        {"type": "video_url", "video_url": {"url": encoded_video}},
+                        {"type": "text", "text": self.instructions_prompt},
                     ],
                 },
             ]
@@ -130,7 +136,7 @@ class Watcher:
                 max_tokens=512,
                 extra_body={
                     "mm_processor_kwargs": {"fps": [fps]},
-                    "guided_json": json_schema
+                    "guided_json": self.json_schema
                 },
             )
 
@@ -141,25 +147,21 @@ class Watcher:
                 logger.error(f"Response text: {response.choices[0].message.content}")
                 return {
                     "success": False,
-                    "error": str(e),
-                    "should_alert": False,
-                    "reasoning": "Error in parsing response",
-                    "recommended_awareness_level": "MEDIUM",
+                    "error": str(e) + "\nRaw response: " + response.choices[0].message.content,
                 }
 
-            # Add success flag and timestamps
-            result["success"] = True
-            result["timestamps"] = [frame.timestamp.isoformat() for frame in frames]
-            result["frame_indices"] = [frame.frame_idx for frame in frames]
-
-            return result
+            # Create result dictionary from parsed response
+            return {
+                "success": True,
+                "should_alert": parsed_response.should_alert,
+                "reasoning": parsed_response.reasoning,
+                "recommended_awareness_level": parsed_response.recommended_awareness_level,
+                "raw_response": response.choices[0].message.content
+            }
 
         except Exception as e:
             logger.error(f"Error processing frames: {e}")
             return {
                 "success": False,
                 "error": str(e),
-                "should_alert": False,
-                "reasoning": "Error in processing",
-                "recommended_awareness_level": "HIGH",  # Default to HIGH on error
             }
