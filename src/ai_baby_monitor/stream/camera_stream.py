@@ -71,7 +71,7 @@ class CameraStream:
             return None
 
     def capture_new_frame(self) -> Frame | None:
-        """Capture a new frame from the camera, only when available."""
+        """Capture a new frame from the camera, only when available. Encode into jpeg."""
         # Check if a new frame is available
         if not self.capture.grab():
             logger.warning("No frame available to grab")
@@ -92,10 +92,16 @@ class CameraStream:
         # Write frame to stream writer if it exists
         if self.stream_writer:
             self.stream_writer.write(frame)
+            
+        # Convert into jpeg
+        ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        if not ret:
+            logger.warning("Failed to encode frame as JPEG")
+            return None
 
         # Create frame object
         frame_obj = Frame(
-            frame_data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
+            frame_data=jpeg,
             timestamp=timestamp,
             frame_idx=self.frame_idx,
         )

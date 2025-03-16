@@ -1,4 +1,5 @@
 import argparse
+import io
 import logging
 import time
 
@@ -76,18 +77,29 @@ def main():
 
         frame = frames[0]
 
-        # Display the frame
-        image = Image.fromarray(frame.frame_data)
-        with stream_placeholder.container():
-            st.image(image, channels="RGB", use_container_width=True)
-
-        # Display frame information
-        info_text = f"Timestamp: {frame.timestamp}\n"
-        info_text += f"Frame Index: {frame.frame_idx}\n"
-        info_text += f"Frame Shape: {frame.frame_data.shape}\n"
-
-        with info_placeholder.container():
-            st.text(info_text)
+        # Display the frame - decode the JPEG data first
+        try:
+            # Convert the numpy array containing JPEG data to bytes
+            jpeg_bytes = bytes(frame.frame_data)
+            
+            # Open the JPEG bytes as an image
+            image = Image.open(io.BytesIO(jpeg_bytes))
+            
+            with stream_placeholder.container():
+                st.image(image, use_container_width=True)
+                
+            # Display frame information
+            info_text = f"Timestamp: {frame.timestamp}\n"
+            info_text += f"Frame Index: {frame.frame_idx}\n"
+            
+            with info_placeholder.container():
+                st.text(info_text)
+                
+        except Exception as e:
+            logger.error(f"Error displaying frame: {e}")
+            with stream_placeholder.container():
+                st.error(f"Error displaying frame: {e}")
+            time.sleep(0.01)
 
 if __name__ == "__main__":
     main()

@@ -31,14 +31,7 @@ class RedisStreamHandler:
     @staticmethod
     def serialize_frame(frame: Frame) -> dict:
         """Serialize a Frame object to a dictionary for Redis storage."""
-        # Convert numpy array to bytes using msgpack
-        frame_bytes = msgpack.packb(
-            {
-                "shape": frame.frame_data.shape,
-                "dtype": str(frame.frame_data.dtype),
-                "data": frame.frame_data.tobytes(),
-            }
-        )
+        frame_bytes = frame.frame_data.tobytes()
 
         # Create the data dictionary
         data = {
@@ -52,14 +45,11 @@ class RedisStreamHandler:
     def deserialize_frame(frame_data: dict) -> Frame | None:
         """Deserialize a frame from Redis data."""
         try:
-            # Unpack the frame data - Redis returns bytes for binary data
+            # Get the raw JPEG bytes
             frame_bytes = frame_data[b"frame_bytes"]
-            frame_info = msgpack.unpackb(frame_bytes)
-
-            # Reconstruct the numpy array
-            frame_array = np.frombuffer(
-                frame_info["data"], dtype=np.dtype(frame_info["dtype"])
-            ).reshape(frame_info["shape"])
+            
+            # Convert bytes back to numpy array (still JPEG encoded)
+            frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
 
             # Convert timestamp string back to datetime
             timestamp = dt.datetime.fromisoformat(
