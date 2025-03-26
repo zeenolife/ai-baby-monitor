@@ -22,7 +22,7 @@ class AwarenessLevel(str, Enum):
 class WatcherResponse(BaseModel):
     should_alert: bool
     reasoning: str
-    recommended_awareness_level: str
+    recommended_awareness_level: AwarenessLevel
 
 
 class Watcher:
