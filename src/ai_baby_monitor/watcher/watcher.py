@@ -1,5 +1,4 @@
 import base64
-import json
 import logging
 from enum import Enum
 from pydantic import BaseModel, ValidationError
@@ -23,7 +22,7 @@ class AwarenessLevel(str, Enum):
 class WatcherResponse(BaseModel):
     should_alert: bool
     reasoning: str
-    recommended_awareness_level: AwarenessLevel
+    recommended_awareness_level: str
 
 
 class Watcher:
@@ -90,7 +89,7 @@ class Watcher:
             logger.warning(f"FPS calculation error: {e}")
             return default_fps
 
-    def process_frames(self, frames: list[Frame]) -> dict[str, str | bool]:
+    def process_frames(self, frames: list[Frame], fps: int | None = None) -> dict[str, str | bool]:
         """Process frames to detect instruction violations.
 
         Returns:
@@ -118,7 +117,7 @@ class Watcher:
 
             # Create message with instructions
             messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": "You are a helpful assistant and baby sitter."},
                 {
                     "role": "user",
                     "content": [
@@ -135,7 +134,7 @@ class Watcher:
                 temperature=0.1,  
                 max_tokens=512,
                 extra_body={
-                    "mm_processor_kwargs": {"fps": [fps]},
+                    "mm_processor_kwargs": {"fps": fps or [self._calculate_fps(frames)]},
                     "guided_json": self.json_schema
                 },
             )
