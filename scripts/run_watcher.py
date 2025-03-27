@@ -3,7 +3,9 @@ import logging
 import time
 from typing import List
 
-from ai_baby_monitor import RedisStreamHandler, Watcher, AwarenessLevel
+from playsound import playsound
+
+from ai_baby_monitor import RedisStreamHandler, Watcher
 
 logging.basicConfig(
     level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
@@ -12,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_watcher(
-    redis_frames_stream_key: str,
-    redis_logs_stream_key: str,
+    redis_stream_key: str,
     redis_host: str,
     redis_port: int,
     instructions: List[str],
@@ -26,8 +27,7 @@ def run_watcher(
     Run the Watcher continuously to monitor frames from Redis stream.
     
     Args:
-        redis_frames_stream_key: Base Redis stream key (will use {key}:subsampled)
-        redis_logs_stream_key: Redis stream key for logging output
+        redis_stream_key: Base Redis stream key (will use {key}:subsampled for video frames and {key}:logs for logs)
         redis_host: Redis server host
         redis_port: Redis server port
         instructions: List of monitoring instructions to check
@@ -51,8 +51,8 @@ def run_watcher(
     )
     
     # Subsampled stream key
-    subsampled_key = f"{redis_frames_stream_key}:subsampled"
-    
+    subsampled_key = f"{redis_stream_key}:subsampled"
+    logs_key = f"{redis_stream_key}:logs"
     logger.info(f"Starting Watcher monitoring Redis stream: {subsampled_key}")
     logger.info(f"Using model: {model_name} on {vllm_host}:{vllm_port}")
     logger.info(f"Monitoring instructions: {'\n* '.join(instructions)}")
@@ -87,14 +87,13 @@ def run_watcher(
                 log_data = {
                     "timestamp": time.time(),
                     "should_alert": int(result["should_alert"]),
-                    "awareness_level": awareness.value if isinstance(awareness, AwarenessLevel) else awareness,
+                    "awareness_level": awareness,
                     "reasoning": result["reasoning"],
                 }
-                redis_handler.add_to_stream(redis_logs_stream_key, log_data)
+                redis_handler.add_logs(logs_key, log_data)
                 
                 if result["should_alert"]:
-                    # TODO: Implement alert notification system
-                    pass
+                    playsound("assets/alert.wav")
             else:
                 error_msg = f"Error processing frames: {result.get('error', 'Unknown error')}"
                 logger.error(error_msg)
@@ -104,7 +103,7 @@ def run_watcher(
                     "timestamp": time.time(),
                     "error": error_msg,
                 }
-                redis_handler.add_to_stream(redis_logs_stream_key, error_data)
+                redis_handler.add_logs(logs_key, error_data)
                 
                 time.sleep(0.3)
             
@@ -121,10 +120,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run Watcher to monitor Redis stream frames.")
     
     parser.add_argument(
-        "--redis-frames-stream-key", required=True, help="Base Redis stream key for frames"
-    )
-    parser.add_argument(
-        "--redis-logs-stream-key", required=True, help="Redis stream key for logging output"
+        "--redis-stream-key", required=True, help="Base Redis stream key for frames and logs"
     )
     parser.add_argument(
         "--redis-host", default="localhost", help="Redis server host"
@@ -162,8 +158,7 @@ if __name__ == "__main__":
     args = parse_args()
     
     run_watcher(
-        redis_frames_stream_key=args.redis_frames_stream_key,
-        redis_logs_stream_key=args.redis_logs_stream_key,
+        redis_stream_key=args.redis_stream_key,
         redis_host=args.redis_host,
         redis_port=args.redis_port,
         instructions=args.instructions,

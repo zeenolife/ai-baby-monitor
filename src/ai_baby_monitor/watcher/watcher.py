@@ -1,6 +1,5 @@
 import base64
 import logging
-from enum import Enum
 from pydantic import BaseModel, ValidationError
 
 from openai import OpenAI
@@ -13,16 +12,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class AwarenessLevel(str, Enum):
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-
-
 class WatcherResponse(BaseModel):
     should_alert: bool
     reasoning: str
-    recommended_awareness_level: AwarenessLevel
+    recommended_awareness_level: str
 
 
 class Watcher:
@@ -97,7 +90,7 @@ class Watcher:
                 - success (bool): Whether processing completed successfully
                 - should_alert (bool): If an alert should be triggered
                 - reasoning (str): Explanation for the decision
-                - recommended_awareness_level (AwarenessLevel): Suggested monitoring level
+                - recommended_awareness_level (str): Suggested monitoring level. Should be one of: LOW, MEDIUM, HIGH
                 - raw_response (str): Original model response
                 - error (str, optional): Error message if processing failed
         """
@@ -140,7 +133,18 @@ class Watcher:
             )
 
             try:
+                # Parse the response directly with Pydantic
                 parsed_response = WatcherResponse.model_validate_json(response.choices[0].message.content)
+                
+                # Ensure awareness level is uppercase for consistency
+                if parsed_response.recommended_awareness_level:
+                    parsed_response.recommended_awareness_level = parsed_response.recommended_awareness_level.upper()
+                    
+                    # Validate that it's one of the expected values
+                    if parsed_response.recommended_awareness_level not in ["LOW", "MEDIUM", "HIGH"]:
+                        logger.warning(f"Invalid awareness level: {parsed_response.recommended_awareness_level}, defaulting to MEDIUM")
+                        parsed_response.recommended_awareness_level = "MEDIUM"
+                
             except ValidationError as e:
                 logger.error(f"Failed to parse response as JSON: {e}")
                 logger.error(f"Response text: {response.choices[0].message.content}")

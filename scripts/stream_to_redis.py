@@ -103,7 +103,7 @@ def parse_args():
     )
     parser.add_argument(
         "--max-frames",
-        default=40,
+        default=64,
         type=int,
         help="Maximum number of frames to keep in Redis",
     )

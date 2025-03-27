@@ -12,7 +12,7 @@ def get_instructions_prompt(instructions: list[str]) -> str:
         Please generate a structured response in raw JSON format:
         - should_alert (boolean)
         - reasoning (string)
-        - recommended_awareness_level (one of: LOW, MEDIUM, HIGH)
+        - recommended_awareness_level (string; one of: LOW, MEDIUM, HIGH)
         Always respond in English, regardless of the content in the images.
         """
     )
