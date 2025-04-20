@@ -1,19 +1,14 @@
 import argparse
 import io
-import logging
 import time
 
 import streamlit as st
+import structlog
 from PIL import Image
 
 from ai_baby_monitor import RedisStreamHandler
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
+logger = structlog.get_logger()
 # Set page config
 st.set_page_config(
     page_title="Baby Monitor Stream Viewer",
@@ -65,9 +60,14 @@ def main():
     while True:
         # Get the latest frame
         start_time = time.time()
-        frames = redis_handler.get_latest_frames(f"{redis_stream_key}:realtime", count=1)
+        frames = redis_handler.get_latest_frames(
+            f"{redis_stream_key}:realtime", count=1
+        )
         end_time = time.time()
-        logger.info(f"Time taken to get frames: {end_time - start_time} seconds")
+        logger.info(
+            "Time taken to get frames",
+            time_taken=end_time - start_time,
+        )
 
         if not frames:
             with stream_placeholder.container():
@@ -81,25 +81,26 @@ def main():
         try:
             # Convert the numpy array containing JPEG data to bytes
             jpeg_bytes = bytes(frame.frame_data)
-            
+
             # Open the JPEG bytes as an image
             image = Image.open(io.BytesIO(jpeg_bytes))
-            
+
             with stream_placeholder.container():
                 st.image(image, use_container_width=True)
-                
+
             # Display frame information
             info_text = f"Timestamp: {frame.timestamp}\n"
             info_text += f"Frame Index: {frame.frame_idx}\n"
-            
+
             with info_placeholder.container():
                 st.text(info_text)
-                
+
         except Exception as e:
-            logger.error(f"Error displaying frame: {e}")
+            logger.error("Error displaying frame", error=e)
             with stream_placeholder.container():
                 st.error(f"Error displaying frame: {e}")
             time.sleep(0.01)
+
 
 if __name__ == "__main__":
     main()

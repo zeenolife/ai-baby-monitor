@@ -1,15 +1,12 @@
 import datetime as dt
-import logging
 import time
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
+import structlog
 
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -46,13 +43,17 @@ class CameraStream:
             try:
                 capture = cv2.VideoCapture(uri)
                 if capture.isOpened():
-                    logger.info(f"Successfully connected to RTSP stream: {uri}")
+                    logger.info("Successfully connected to RTSP stream", uri=uri)
                     return capture
                 raise ConnectionError("Failed to open RTSP stream")
             except Exception as e:
                 retries += 1
                 logger.error(
-                    f"Reconnect Attempt to {uri} {retries}/{max_retries}. Error: {str(e)}"
+                    "Reconnect attempt",
+                    uri=uri,
+                    retry_attempt=retries,
+                    max_retries=max_retries,
+                    error=str(e),
                 )
                 time.sleep(2)
         raise ConnectionError(f"Failed to connect to camera stream: {uri}")
@@ -64,7 +65,10 @@ class CameraStream:
         if save_stream_path:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(
-                save_stream_path, fourcc, self.capture.get(cv2.CAP_PROP_FPS), self.frame_shape
+                save_stream_path,
+                fourcc,
+                self.capture.get(cv2.CAP_PROP_FPS),
+                self.frame_shape,
             )
             return writer
         else:
@@ -76,15 +80,15 @@ class CameraStream:
         if not self.capture.grab():
             logger.warning("No frame available to grab")
             return None
-            
+
         # Retrieve the grabbed frame
         ret, frame = self.capture.retrieve()
         if not ret:
             logger.warning("Failed to retrieve grabbed frame")
             return None
-        
+
         timestamp = dt.datetime.now()
-            
+
         # Resize frame if needed
         if self.frame_shape and (frame.shape[1], frame.shape[0]) != self.frame_shape:
             frame = cv2.resize(frame, self.frame_shape)
@@ -92,9 +96,9 @@ class CameraStream:
         # Write frame to stream writer if it exists
         if self.stream_writer:
             self.stream_writer.write(frame)
-            
+
         # Convert into jpeg
-        ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        ret, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 100])
         if not ret:
             logger.warning("Failed to encode frame as JPEG")
             return None
@@ -105,7 +109,7 @@ class CameraStream:
             timestamp=timestamp,
             frame_idx=self.frame_idx,
         )
-        
+
         self.frame_idx += 1
         return frame_obj
 

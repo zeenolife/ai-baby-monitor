@@ -1,14 +1,12 @@
-import logging
 import datetime as dt
+
 import numpy as np
 import redis
+import structlog
 
 from ai_baby_monitor.stream.camera_stream import Frame
 
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class RedisStreamHandler:
@@ -25,7 +23,11 @@ class RedisStreamHandler:
             redis_port: Redis server port
         """
         self.redis_client = redis.Redis(host=redis_host, port=redis_port)
-        logger.info(f"Initialized Redis stream handler on {redis_host}:{redis_port}")
+        logger.info(
+            "Initialized Redis stream handler",
+            redis_host=redis_host,
+            redis_port=redis_port,
+        )
 
     @staticmethod
     def serialize_frame(frame: Frame) -> dict:
@@ -46,7 +48,7 @@ class RedisStreamHandler:
         try:
             # Get the raw JPEG bytes
             frame_bytes = frame_data[b"frame_bytes"]
-            
+
             # Convert bytes back to numpy array (still JPEG encoded)
             frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
 
@@ -62,14 +64,14 @@ class RedisStreamHandler:
                 frame_idx=int(frame_data[b"frame_idx"]),
             )
         except Exception as e:
-            logger.error(f"Error deserializing frame: {e}")
+            logger.error("Error deserializing frame", error=e)
             return None
 
     def add_frame(
         self, frame: Frame, key: str, maxlen: int, approximate: bool = True
     ) -> str:
         """Add a frame to the Redis stream and trim if necessary.
-        
+
         Args:
             frame: Frame object to add to the stream
             key: Redis stream key

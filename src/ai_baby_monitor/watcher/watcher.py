@@ -1,15 +1,13 @@
 import base64
-import logging
+import structlog
 from pydantic import BaseModel, ValidationError
 
 from openai import OpenAI
 
 from ai_baby_monitor.stream.camera_stream import Frame
 from ai_baby_monitor.watcher.base_prompt import get_instructions_prompt
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+
+logger = structlog.get_logger()
 
 
 class WatcherResponse(BaseModel):
@@ -37,7 +35,7 @@ class Watcher:
         """
         self.instructions_prompt = get_instructions_prompt(instructions)
         self.json_schema = WatcherResponse.model_json_schema()
-        
+
         self.vllm_host = vllm_host
         self.vllm_port = vllm_port
         self.model_name = model_name
@@ -48,9 +46,13 @@ class Watcher:
             base_url=f"http://{vllm_host}:{vllm_port}/v1",
         )
 
-        logger.info(f"Initialized Watcher with model {model_name}")
-        logger.info(f"Connected to vLLM server at {vllm_host}:{vllm_port}")
-        logger.info(f"Monitoring instructions: {', '.join(instructions)}")
+        logger.info(
+            "Initialized Watcher",
+            model_name=model_name,
+            vllm_host=vllm_host,
+            vllm_port=vllm_port,
+            instructions=instructions,
+        )
 
     def _frames_to_base64(self, frames: list[Frame]) -> list[str]:
         """Convert JPEG-encoded frame data to base64 encoded strings."""
@@ -67,22 +69,24 @@ class Watcher:
         if len(frames) < 2:
             logger.warning("Too few frames to calculate FPS, using default of 2")
             return default_fps
-            
+
         try:
             time_diff = (frames[-1].timestamp - frames[0].timestamp).total_seconds()
             if time_diff <= 0:
                 return default_fps
-                
+
             fps = round((len(frames) - 1) / time_diff)
-            
+
             # Return default if calculated FPS is unreasonable
             return default_fps if fps < 0.02 or fps > 60 else fps
-            
+
         except Exception as e:
-            logger.warning(f"FPS calculation error: {e}")
+            logger.warning("FPS calculation error", error=e)
             return default_fps
 
-    def process_frames(self, frames: list[Frame], fps: int | None = None) -> dict[str, str | bool]:
+    def process_frames(
+        self, frames: list[Frame], fps: int | None = None
+    ) -> dict[str, str | bool]:
         """Process frames to detect instruction violations.
 
         Returns:
@@ -110,7 +114,10 @@ class Watcher:
 
             # Create message with instructions
             messages = [
-                {"role": "system", "content": "You are a helpful assistant and baby sitter."},
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant and baby sitter.",
+                },
                 {
                     "role": "user",
                     "content": [
@@ -124,33 +131,50 @@ class Watcher:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
-                temperature=0.1,  
+                temperature=0.1,
                 max_tokens=512,
                 extra_body={
-                    "mm_processor_kwargs": {"fps": fps or [self._calculate_fps(frames)]},
-                    "guided_json": self.json_schema
+                    "mm_processor_kwargs": {
+                        "fps": fps or [self._calculate_fps(frames)]
+                    },
+                    "guided_json": self.json_schema,
                 },
             )
 
             try:
                 # Parse the response directly with Pydantic
-                parsed_response = WatcherResponse.model_validate_json(response.choices[0].message.content)
-                
+                parsed_response = WatcherResponse.model_validate_json(
+                    response.choices[0].message.content
+                )
+
                 # Ensure awareness level is uppercase for consistency
                 if parsed_response.recommended_awareness_level:
-                    parsed_response.recommended_awareness_level = parsed_response.recommended_awareness_level.upper()
-                    
+                    parsed_response.recommended_awareness_level = (
+                        parsed_response.recommended_awareness_level.upper()
+                    )
+
                     # Validate that it's one of the expected values
-                    if parsed_response.recommended_awareness_level not in ["LOW", "MEDIUM", "HIGH"]:
-                        logger.warning(f"Invalid awareness level: {parsed_response.recommended_awareness_level}, defaulting to MEDIUM")
+                    if parsed_response.recommended_awareness_level not in [
+                        "LOW",
+                        "MEDIUM",
+                        "HIGH",
+                    ]:
+                        logger.warning(
+                            f"Invalid awareness level: {parsed_response.recommended_awareness_level}, defaulting to MEDIUM"
+                        )
                         parsed_response.recommended_awareness_level = "MEDIUM"
-                
+
             except ValidationError as e:
-                logger.error(f"Failed to parse response as JSON: {e}")
-                logger.error(f"Response text: {response.choices[0].message.content}")
+                logger.error("Failed to parse response as JSON", error=e)
+                logger.error(
+                    "Response text",
+                    response_text=response.choices[0].message.content,
+                )
                 return {
                     "success": False,
-                    "error": str(e) + "\nRaw response: " + response.choices[0].message.content,
+                    "error": str(e)
+                    + "\nRaw response: "
+                    + response.choices[0].message.content,
                 }
 
             # Create result dictionary from parsed response
@@ -159,11 +183,11 @@ class Watcher:
                 "should_alert": parsed_response.should_alert,
                 "reasoning": parsed_response.reasoning,
                 "recommended_awareness_level": parsed_response.recommended_awareness_level,
-                "raw_response": response.choices[0].message.content
+                "raw_response": response.choices[0].message.content,
             }
 
         except Exception as e:
-            logger.error(f"Error processing frames: {e}")
+            logger.error("Error processing frames", error=e)
             return {
                 "success": False,
                 "error": str(e),

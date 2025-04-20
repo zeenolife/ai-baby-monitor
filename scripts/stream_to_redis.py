@@ -1,12 +1,11 @@
-import logging
-import time
 import argparse
+import time
+
+import structlog
+
 from ai_baby_monitor import CameraStream, RedisStreamHandler
 
-logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 def stream_to_redis(
@@ -30,9 +29,12 @@ def stream_to_redis(
     if frame_width is not None and frame_height is not None:
         frame_shape = (frame_width, frame_height)
 
-    logger.info(f"Initializing camera stream from: {camera_uri}")
+    logger.info("Initializing camera stream", camera_uri=camera_uri)
     logger.info(
-        f"Streaming to Redis key: {redis_stream_key} at {redis_host}:{redis_port}"
+        "Streaming to Redis",
+        redis_stream_key=redis_stream_key,
+        redis_host=redis_host,
+        redis_port=redis_port,
     )
     logger.info(
         f"Using subsample rate of 1 out of {subsample_rate} for subsampled queue"
@@ -70,7 +72,9 @@ def stream_to_redis(
                         frame, f"{redis_stream_key}:subsampled", max_frames
                     )
                     logger.info(
-                        f"Added frame {frame.frame_idx} to subsampled queue. Timestamp: {frame.timestamp}"
+                        "Added frame to subsampled queue",
+                        frame_idx=frame.frame_idx,
+                        timestamp=frame.timestamp,
                     )
             else:
                 logger.warning("Failed to capture frame, retrying...")
@@ -79,7 +83,7 @@ def stream_to_redis(
     except KeyboardInterrupt:
         logger.info("Stream interrupted by user")
     except Exception as e:
-        logger.error(f"Error in streaming: {e}")
+        logger.error("Error in streaming", error=e)
     finally:
         if "camera" in locals():
             camera.close()

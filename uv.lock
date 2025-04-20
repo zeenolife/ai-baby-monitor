@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.12"
 resolution-markers = [
     "sys_platform == 'darwin'",
@@ -16,6 +17,7 @@ dependencies = [
     { name = "redis" },
     { name = "setuptools" },
     { name = "streamlit" },
+    { name = "structlog" },
     { name = "vllm" },
     { name = "wheel" },
 ]
@@ -27,6 +29,7 @@ requires-dist = [
     { name = "redis", specifier = ">=5.2.1" },
     { name = "setuptools", specifier = ">=75.8.2" },
     { name = "streamlit", specifier = ">=1.42.2" },
+    { name = "structlog", specifier = ">=25.2.0" },
     { name = "vllm", specifier = ">=0.8.2" },
     { name = "wheel", specifier = ">=0.45.1" },
 ]
@@ -2104,6 +2107,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/08/58/b1875ccb6901cec7a721059bfd9122107d29e0b0ccfdcea9d353af6b5c52/streamlit-1.42.2.tar.gz", hash = "sha256:62026dbdcb482790933f658b096d7dd58fa70da89c1f06fbc3658b91dcd4dab2", size = 9169615 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e4/08/c962e38f4450dafb98af49f8988a736dd67ae9cc26a5704c43269f506bc8/streamlit-1.42.2-py2.py3-none-any.whl", hash = "sha256:e2516c7fcd17a11a85cc1999fae58ace0a6458e2b4c1a411ed3d75b1aee2eb93", size = 9559800 },
+]
+
+[[package]]
+name = "structlog"
+version = "25.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/b8/d3670aec25747e32d54cd5258102ae0d69b9c61c79e7aa326be61a570d0d/structlog-25.2.0.tar.gz", hash = "sha256:d9f9776944207d1035b8b26072b9b140c63702fd7aa57c2f85d28ab701bd8e92", size = 1367438 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/eb/244741c1abf7b4092686db0798a4c43491298f40ddec4226f5c4f6b5d3eb/structlog-25.2.0-py3-none-any.whl", hash = "sha256:0fecea2e345d5d491b72f3db2e5fcd6393abfc8cd06a4851f21fcd4d1a99f437", size = 68448 },
 ]
 
 [[package]]
