@@ -1,11 +1,12 @@
 import argparse
 import time
-from typing import List
+from pathlib import Path
 
 import structlog
 from playsound import playsound
 
 from ai_baby_monitor import RedisStreamHandler, Watcher
+from ai_baby_monitor.config import load_room_config_file
 
 logger = structlog.get_logger()
 
@@ -14,7 +15,7 @@ def run_watcher(
     redis_stream_key: str,
     redis_host: str,
     redis_port: int,
-    instructions: List[str],
+    instructions: list[str],
     vllm_host: str,
     vllm_port: int,
     model_name: str,
@@ -24,14 +25,14 @@ def run_watcher(
     Run the Watcher continuously to monitor frames from Redis stream.
 
     Args:
-        redis_stream_key: Base Redis stream key (will use {key}:subsampled for video frames and {key}:logs for logs)
-        redis_host: Redis server host
-        redis_port: Redis server port
-        instructions: List of monitoring instructions to check
-        vllm_host: vLLM server host
-        vllm_port: vLLM server port
-        model_name: Model name to use for inference
-        num_frames_to_process: Number of frames to analyze in each batch
+        redis_stream_key: Base Redis stream key (e.g., room name from config). Will use {key}:subsampled for video frames and {key}:logs for logs.
+        redis_host: Redis server host.
+        redis_port: Redis server port.
+        instructions: List of monitoring instructions to check (from room config).
+        vllm_host: vLLM server host.
+        vllm_port: vLLM server port.
+        model_name: Model name to use for inference (from room config).
+        num_frames_to_process: Number of frames to analyze in each batch.
     """
     # Initialize Redis stream handler
     redis_handler = RedisStreamHandler(
@@ -55,7 +56,9 @@ def run_watcher(
         video_queue_key=subsampled_key,
         logs_queue_key=logs_key,
     )
-    logger.info("Using model", model_name=model_name, vllm_host=vllm_host, vllm_port=vllm_port)
+    logger.info(
+        "Using model", model_name=model_name, vllm_host=vllm_host, vllm_port=vllm_port
+    )
     logger.info("Monitoring instructions", instructions=instructions)
 
     try:
@@ -66,7 +69,9 @@ def run_watcher(
             )
 
             if not frames:
-                logger.warning("No frames available in stream", video_queue_key=subsampled_key)
+                logger.warning(
+                    "No frames available in stream", video_queue_key=subsampled_key
+                )
                 time.sleep(0.3)
                 continue
 
@@ -126,31 +131,18 @@ def run_watcher(
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run Watcher to monitor Redis stream frames."
+        description="Run Watcher to monitor Redis stream frames based on room configuration."
     )
 
     parser.add_argument(
-        "--redis-stream-key",
-        required=True,
-        help="Base Redis stream key for frames and logs",
+        "--config-file", required=True, help="Path to room configuration YAML file"
     )
     parser.add_argument("--redis-host", default="localhost", help="Redis server host")
     parser.add_argument(
         "--redis-port", default=6379, type=int, help="Redis server port"
     )
-    parser.add_argument(
-        "--instructions",
-        nargs="+",
-        required=True,
-        help="List of monitoring instructions to check",
-    )
     parser.add_argument("--vllm-host", default="localhost", help="vLLM server host")
     parser.add_argument("--vllm-port", default=8000, type=int, help="vLLM server port")
-    parser.add_argument(
-        "--model-name",
-        default="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
-        help="Model name to use for inference",
-    )
     parser.add_argument(
         "--num-frames-to-process",
         default=16,
@@ -163,13 +155,41 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    run_watcher(
-        redis_stream_key=args.redis_stream_key,
-        redis_host=args.redis_host,
-        redis_port=args.redis_port,
-        instructions=args.instructions,
-        vllm_host=args.vllm_host,
-        vllm_port=args.vllm_port,
-        model_name=args.model_name,
-        num_frames_to_process=args.num_frames_to_process,
-    )
+    try:
+        # Load room configuration from file
+        room_config = load_room_config_file(args.config_file)
+        config_file_path = Path(args.config_file)
+        logger.info(
+            f"Loaded configuration for room: {room_config.name}",
+            config_file=str(config_file_path.resolve()),
+        )
+
+        # Extract parameters from config
+        redis_stream_key = room_config.name
+        instructions = room_config.instructions
+        model_name = room_config.llm_model_name
+
+        # Ensure instructions are provided, as RoomConfig defaults to an empty list if not in YAML.
+        if not instructions:
+            logger.error(
+                "The 'instructions' list is empty or missing in the configuration file. At least one instruction is required for the watcher.",
+                config_file=str(config_file_path.resolve()),
+            )
+            exit(1)
+
+        run_watcher(
+            redis_stream_key=redis_stream_key,
+            redis_host=args.redis_host,
+            redis_port=args.redis_port,
+            instructions=instructions,
+            vllm_host=args.vllm_host,
+            vllm_port=args.vllm_port,
+            model_name=model_name,
+            num_frames_to_process=args.num_frames_to_process,
+        )
+    except FileNotFoundError:
+        logger.error(f"Configuration file not found: {args.config_file}")
+        exit(1)
+    except Exception as e:
+        logger.error("Failed to start watcher", error=str(e))
+        exit(1)
