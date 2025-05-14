@@ -7,50 +7,76 @@ import structlog
 from PIL import Image
 
 from ai_baby_monitor import RedisStreamHandler
+from ai_baby_monitor.config import load_multiple_room_configs
 
 logger = structlog.get_logger()
 # Set page config
 st.set_page_config(
     page_title="Baby Monitor Stream Viewer",
     page_icon="👶",
-    layout="wide",
 )
 
 
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Baby Monitor Stream Viewer")
-    parser.add_argument("--redis-stream-key", required=True, help="Redis stream key")
+    parser.add_argument(
+        "--config-files",
+        nargs="+",  # Accept one or more config files
+        required=True,
+        help="Paths to room configuration YAML files",
+    )
     parser.add_argument("--redis-host", default="localhost", help="Redis host")
     parser.add_argument("--redis-port", type=int, default=6379, help="Redis port")
 
     return parser.parse_known_args()[0]
 
+args = parse_args()
+
+redis_handler = RedisStreamHandler(
+    redis_host=args.redis_host,
+    redis_port=args.redis_port,
+)
+
+room_configs = load_multiple_room_configs(args.config_files)
+if not room_configs:
+    st.error("No valid room configurations found. Please check the config files.")
+
+
 
 def main():
-    # Parse command line arguments
-    args = parse_args()
 
-    # Get query parameters
-    query_params = st.query_params
+    room_names = list(room_configs.keys())
+    default_room = room_names[0]
 
     # App title and description
     st.title("Baby Monitor Stream Viewer")
-    st.markdown("View the live camera stream from your baby monitor")
 
     # Sidebar for configuration
     with st.sidebar:
-        st.header("Stream Configuration")
+        st.header("Room Configuration")
 
-        redis_stream_key = st.text_input(
-            "Room Name",
-            value=query_params.get("redis_stream_key", args.redis_stream_key),
+        selected_room_name = st.selectbox(
+            "Select Room",
+            options=room_names,
+            index=room_names.index(default_room),
         )
 
-    redis_handler = RedisStreamHandler(
-        redis_host=args.redis_host,
-        redis_port=args.redis_port,
-    )
+        # Display config summary
+        if selected_room_name and selected_room_name in room_configs:
+            selected_config = room_configs[selected_room_name]
+            st.caption("Instructions:")
+            for instruction in selected_config.instructions:
+                st.markdown(f"- {instruction}")
+            st.divider()
+            with st.expander("Camera details"):
+                st.caption(f"Camera URI:  {selected_config.camera_uri}")
+                st.caption(f"Frame width: {selected_config.frame_width}")
+                st.caption(f"Frame height: {selected_config.frame_height}")
+                st.caption(f"Subsample rate: {selected_config.subsample_rate}")
+            st.divider()
+            with st.expander("LLM Model"):
+                st.caption(f"LLM Model: {selected_config.llm_model_name}")
 
     # Create placeholder for the video stream
     stream_placeholder = st.empty()
@@ -59,14 +85,8 @@ def main():
     # Main display loop
     while True:
         # Get the latest frame
-        start_time = time.time()
         frames = redis_handler.get_latest_frames(
-            f"{redis_stream_key}:realtime", count=1
-        )
-        end_time = time.time()
-        logger.info(
-            "Time taken to get frames",
-            time_taken=end_time - start_time,
+            f"{selected_room_name}:realtime", count=1
         )
 
         if not frames:
@@ -88,9 +108,6 @@ def main():
             with stream_placeholder.container():
                 st.image(image, use_container_width=True)
 
-            # Display frame information
-            info_text = f"Timestamp: {frame.timestamp}\n"
-            info_text += f"Frame Index: {frame.frame_idx}\n"
 
             with info_placeholder.container():
                 st.text(info_text)
@@ -102,5 +119,4 @@ def main():
             time.sleep(0.01)
 
 
-if __name__ == "__main__":
-    main()
+main()

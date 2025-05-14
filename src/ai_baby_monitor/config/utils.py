@@ -44,3 +44,12 @@ def load_room_config_file(config_path: str | Path) -> RoomConfig:
         raise ValueError(f"Missing required field in config: {e}")
     except yaml.YAMLError as e:
         raise ValueError(f"Error parsing YAML file: {e}")
+
+
+def load_multiple_room_configs(config_files: list[str | Path]) -> dict[str, RoomConfig]:
+    """Load multiple room configurations from a list of YAML files."""
+    configs = {}
+    for config_file in config_files:
+        config = load_room_config_file(config_file)
+        configs[config.name] = config
+    return configs
