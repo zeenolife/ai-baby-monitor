@@ -1,14 +1,11 @@
-name: "baby_monitor_main"
+name: "living_room"
 
 camera:
-  uri: "0"  # Use "0" for default webcam, or specify IP camera URI
+  uri: "0"
 
 llm:
-  model_name: "Qwen/Qwen2-VL-2B-Instruct"
-  gpu_memory_utilization: 0.9
-  enable_prefix_caching: true
+  model_name: "Qwen/Qwen2.5-VL-3B-Instruct"
 
 instructions:
   - "The baby shouldn't do anything dangerous."
   - "An adult should be in the room with the baby if the baby is awake."
-  - "Baby shouldn't climb out of the crib." 

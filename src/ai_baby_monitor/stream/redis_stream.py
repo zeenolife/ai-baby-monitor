@@ -98,9 +98,13 @@ class RedisStreamHandler:
         entry_id = self.redis_client.xadd(name=key, fields=log_data)
         return entry_id
 
+    def get_latest_entries(self, key: str, count: int = 1) -> list[tuple[bytes, dict]]:
+        """Get the latest entries from a Redis stream."""
+        return self.redis_client.xrevrange(name=key, count=count)
+
     def get_latest_frames(self, key: str, count: int = 1) -> list[Frame]:
         """Get the latest frames from the Redis stream."""
-        entries = self.redis_client.xrevrange(name=key, count=count)
+        entries = self.get_latest_entries(key=key, count=count)
 
         # Deserialize the frames
         frames = []
@@ -113,4 +117,4 @@ class RedisStreamHandler:
 
     def get_latest_logs(self, key: str, count: int = 1) -> list[dict]:
         """Get the latest logs from the Redis stream."""
-        return self.redis_client.xrevrange(name=key, count=count)
+        return self.get_latest_entries(key=key, count=count)
