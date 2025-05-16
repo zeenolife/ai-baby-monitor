@@ -1,8 +1,9 @@
 import base64
-import structlog
-from pydantic import BaseModel, ValidationError
+from enum import Enum
 
+import structlog
 from openai import OpenAI
+from pydantic import BaseModel
 
 from ai_baby_monitor.stream.camera_stream import Frame
 from ai_baby_monitor.watcher.base_prompt import get_instructions_prompt
@@ -10,10 +11,16 @@ from ai_baby_monitor.watcher.base_prompt import get_instructions_prompt
 logger = structlog.get_logger()
 
 
+class AwarenessLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
 class WatcherResponse(BaseModel):
     should_alert: bool
     reasoning: str
-    recommended_awareness_level: str
+    recommended_awareness_level: AwarenessLevel
 
 
 class Watcher:
@@ -140,44 +147,11 @@ class Watcher:
                     "guided_json": self.json_schema,
                 },
             )
+            
+            parsed_response = WatcherResponse.model_validate_json(
+                response.choices[0].message.content
+            )
 
-            try:
-                # Parse the response directly with Pydantic
-                parsed_response = WatcherResponse.model_validate_json(
-                    response.choices[0].message.content
-                )
-
-                # Ensure awareness level is uppercase for consistency
-                if parsed_response.recommended_awareness_level:
-                    parsed_response.recommended_awareness_level = (
-                        parsed_response.recommended_awareness_level.upper()
-                    )
-
-                    # Validate that it's one of the expected values
-                    if parsed_response.recommended_awareness_level not in [
-                        "LOW",
-                        "MEDIUM",
-                        "HIGH",
-                    ]:
-                        logger.warning(
-                            f"Invalid awareness level: {parsed_response.recommended_awareness_level}, defaulting to MEDIUM"
-                        )
-                        parsed_response.recommended_awareness_level = "MEDIUM"
-
-            except ValidationError as e:
-                logger.error("Failed to parse response as JSON", error=e)
-                logger.error(
-                    "Response text",
-                    response_text=response.choices[0].message.content,
-                )
-                return {
-                    "success": False,
-                    "error": str(e)
-                    + "\nRaw response: "
-                    + response.choices[0].message.content,
-                }
-
-            # Create result dictionary from parsed response
             return {
                 "success": True,
                 "should_alert": parsed_response.should_alert,
