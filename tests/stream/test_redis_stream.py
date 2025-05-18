@@ -153,7 +153,7 @@ def test_add_logs(redis_handler: RedisStreamHandler, mock_redis_client: MagicMoc
     entry_id = redis_handler.add_logs(key, log_data)
 
     assert entry_id == b"mock_entry_id"
-    mock_redis_client.xadd.assert_called_once_with(name=key, fields=log_data)
+    mock_redis_client.xadd.assert_called_once_with(name=key, fields=log_data, maxlen=3600 * 6, approximate=True)
 
 
 def test_get_latest_entries(

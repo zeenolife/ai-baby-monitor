@@ -14,6 +14,7 @@ class RoomConfig:
     frame_width: int = 640
     frame_height: int = 360
     subsample_rate: int = 4
+    num_frames_to_process: int = 16
 
     def __str__(self):
         return self.name
@@ -38,7 +39,7 @@ def load_room_config_file(config_path: str | Path) -> RoomConfig:
             
             # Optional fields (only include if specified in YAML)
             **{k: data["camera"][k] for k in 
-               ["subsampled_stream_maxlen", "frame_width", "frame_height", "subsample_rate"]
+               ["subsampled_stream_maxlen", "frame_width", "frame_height", "subsample_rate", "num_frames_to_process"]
                if k in data["camera"]}
         }
         

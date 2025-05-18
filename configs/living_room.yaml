@@ -1,10 +1,7 @@
 name: "living_room"
 
 camera:
-  uri: "rtsp://local_camera:fazquf-dowfiz-5xajjI@192.168.1.133:554/stream2"
-
-llm:
-  model_name: "Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
+  uri: "0"
 
 instructions:
   - "The baby shouldn't do anything dangerous."

@@ -1,15 +1,24 @@
 import argparse
+import os
 import time
 from pathlib import Path
 
 import structlog
+from dotenv import load_dotenv
 from playsound import playsound
 
+from ai_baby_monitor.config import load_room_config_file
 from ai_baby_monitor.stream import RedisStreamHandler
 from ai_baby_monitor.watcher import Watcher
-from ai_baby_monitor.config import load_room_config_file
 
 logger = structlog.get_logger()
+
+load_dotenv()
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+VLLM_HOST = os.getenv("VLLM_HOST")
+VLLM_PORT = os.getenv("VLLM_PORT")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME")
 
 
 def run_watcher(
@@ -135,18 +144,6 @@ def parse_args():
     parser.add_argument(
         "--config-file", required=True, help="Path to room configuration YAML file"
     )
-    parser.add_argument("--redis-host", default="localhost", help="Redis server host")
-    parser.add_argument(
-        "--redis-port", default=6379, type=int, help="Redis server port"
-    )
-    parser.add_argument("--vllm-host", default="localhost", help="vLLM server host")
-    parser.add_argument("--vllm-port", default=8000, type=int, help="vLLM server port")
-    parser.add_argument(
-        "--num-frames-to-process",
-        default=16,
-        type=int,
-        help="Number of frames to analyze in each batch",
-    )
     return parser.parse_args()
 
 
@@ -165,7 +162,7 @@ if __name__ == "__main__":
         # Extract parameters from config
         redis_stream_key = room_config.name
         instructions = room_config.instructions
-        model_name = room_config.llm_model_name
+        num_frames_to_process = room_config.num_frames_to_process
 
         # Ensure instructions are provided, as RoomConfig defaults to an empty list if not in YAML.
         if not instructions:
@@ -177,13 +174,13 @@ if __name__ == "__main__":
 
         run_watcher(
             redis_stream_key=redis_stream_key,
-            redis_host=args.redis_host,
-            redis_port=args.redis_port,
+            redis_host=REDIS_HOST,
+            redis_port=REDIS_PORT,
             instructions=instructions,
-            vllm_host=args.vllm_host,
-            vllm_port=args.vllm_port,
-            model_name=model_name,
-            num_frames_to_process=args.num_frames_to_process,
+            vllm_host=VLLM_HOST,
+            vllm_port=VLLM_PORT,
+            model_name=LLM_MODEL_NAME,
+            num_frames_to_process=num_frames_to_process,
         )
     except FileNotFoundError:
         logger.error(f"Configuration file not found: {args.config_file}")

@@ -1,7 +1,9 @@
 import argparse
+import os
 
 import streamlit as st
 import structlog
+from dotenv import load_dotenv
 
 from ai_baby_monitor.config import load_multiple_room_configs
 from ai_baby_monitor.ui import (
@@ -11,6 +13,10 @@ from ai_baby_monitor.ui import (
     get_last_image_with_timestamp,
     render_logs,
 )
+
+load_dotenv()
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
 
 logger = structlog.get_logger()
 
@@ -26,10 +32,6 @@ def parse_args():
     )
 
     return parser.parse_known_args()[0]
-
-
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
 
 
 st.set_page_config(
@@ -48,11 +50,15 @@ if "room_configs" not in st.session_state:
 redis_handler = get_cached_redis_handler(REDIS_HOST, REDIS_PORT)
 
 # Sidebar has a side-effect of setting selected config and real-time stream vs historic logs
-display_sidebar(room_configs_key="room_configs", config_key="selected_config")
+display_sidebar(
+    room_configs_key="room_configs",
+    config_key="selected_config",
+    mode_key="selected_mode",
+)
 selected_config = st.session_state["selected_config"]
+selected_mode = st.session_state["selected_mode"]
 
-
-if st.session_state["selected_mode"] == "Real-time stream":
+if selected_mode == "Real-time stream":
     st.title("Baby Monitor Stream Viewer")
 
     # Placeholders for the stream and logs
@@ -69,16 +75,14 @@ if st.session_state["selected_mode"] == "Real-time stream":
                 with st.expander("Frame Info"):
                     st.caption(f"Timestamp: {timestamp}")
 
-
         with log_placeholder.container(height=350):
             with st.expander("LLM Logs", expanded=True, icon="🤖"):
-                
                 logs = fetch_logs(
                     redis_handler,
                     selected_config.name,
                     num_logs=1,
                 )
-                
+
                 render_logs(logs)
 
 else:

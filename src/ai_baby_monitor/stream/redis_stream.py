@@ -66,7 +66,7 @@ class RedisStreamHandler:
         except Exception as e:
             logger.error("Error deserializing frame", error=e)
             return None
-        
+
     @staticmethod
     def deserialize_log(log_data: dict) -> dict:
         """Deserialize a log from Redis data."""
@@ -105,19 +105,31 @@ class RedisStreamHandler:
 
         return entry_id
 
-    def add_logs(self, key: str, log_data: dict) -> str:
+    def add_logs(
+        self,
+        key: str,
+        log_data: dict,
+        maxlen: int = 3600 * 6,
+        approximate: bool = True,
+    ) -> str:
         """Add logs to the Redis stream."""
-        entry_id = self.redis_client.xadd(name=key, fields=log_data)
+        entry_id = self.redis_client.xadd(
+            name=key, fields=log_data, maxlen=maxlen, approximate=approximate
+        )
         return entry_id
 
     def get_latest_entries(
         self, key: str, count: int = 1, last_id: str | None = None
     ) -> list[tuple[bytes, dict]]:
-        """Get the latest entries from a Redis stream."""
+        """Get the latest entries from a Redis stream.
+        This bit is kinda tricky. To get the latest entries, you need to use xrevrange, 
+        but then reverse it back to get chronological order. If you use xrange, you get
+        earliest entries first.
+        """
         min_id = last_id if last_id else "-"
-        return self.redis_client.xrevrange(
-            name=key, max="+", min=min_id, count=count
-        )[::-1]
+        return self.redis_client.xrevrange(name=key, max="+", min=min_id, count=count)[
+            ::-1
+        ]
 
     def get_latest_frames(self, key: str, count: int = 1) -> list[Frame]:
         """Get the latest frames from the Redis stream."""

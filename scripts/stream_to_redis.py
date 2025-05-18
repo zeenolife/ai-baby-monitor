@@ -1,13 +1,19 @@
 import argparse
+import os
 import time
 from pathlib import Path
 
 import structlog
+from dotenv import load_dotenv
 
-from ai_baby_monitor.stream import CameraStream, RedisStreamHandler
 from ai_baby_monitor.config import load_room_config_file
+from ai_baby_monitor.stream import CameraStream, RedisStreamHandler
 
 logger = structlog.get_logger()
+
+load_dotenv()
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
 
 
 def stream_to_redis(
@@ -23,7 +29,7 @@ def stream_to_redis(
 ):
     """
     Stream camera frames to Redis short realtime and long subsampled queues.
-    
+
     This function is used by the main entry point and expects configuration
     parameters to be loaded from the room's YAML config file.
     """
@@ -76,7 +82,9 @@ def stream_to_redis(
                 # Add to subsampled queue every nth frame
                 if frame.frame_idx % subsample_rate == 0:
                     redis_handler.add_frame(
-                        frame, f"{redis_stream_key}:subsampled", subsampled_stream_maxlen
+                        frame,
+                        f"{redis_stream_key}:subsampled",
+                        subsampled_stream_maxlen,
                     )
                     logger.info(
                         "Added frame to subsampled queue",
@@ -104,15 +112,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--config-file", 
-        required=True, 
-        help="Path to room configuration YAML file"
-    )
-    parser.add_argument(
-        "--redis-host", default="localhost", help="Redis server host"
-    )
-    parser.add_argument(
-        "--redis-port", default=6379, type=int, help="Redis server port"
+        "--config-file", required=True, help="Path to room configuration YAML file"
     )
     parser.add_argument(
         "--save-stream-path",
@@ -130,30 +130,32 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    
+
     # Load room configuration from file
     try:
         room_config = load_room_config_file(args.config_file)
         config_file_path = Path(args.config_file)
-        logger.info(f"Loaded configuration for room: {room_config.name}", 
-                   config_file=str(config_file_path.resolve()))
-        
+        logger.info(
+            f"Loaded configuration for room: {room_config.name}",
+            config_file=str(config_file_path.resolve()),
+        )
+
         # Extract camera settings from config
         camera_uri = room_config.camera_uri
-        
+
         # Override with demo if requested
         if args.demo:
             camera_uri = "assets/demo/demo.mp4"
             logger.info("Using demo video source", camera_uri=camera_uri)
-                
+
         # Use the room name as the redis stream key
         redis_stream_key = room_config.name
-        
+
         stream_to_redis(
             camera_uri=camera_uri,
             redis_stream_key=redis_stream_key,
-            redis_host=args.redis_host,
-            redis_port=args.redis_port,
+            redis_host=REDIS_HOST,
+            redis_port=REDIS_PORT,
             subsampled_stream_maxlen=room_config.subsampled_stream_maxlen,
             save_stream_path=args.save_stream_path,
             frame_width=room_config.frame_width,

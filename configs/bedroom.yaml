@@ -3,9 +3,6 @@ name: "bedroom"
 camera:
   uri: "1"
 
-llm:
-  model_name: "Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
-
 instructions:
   - "The baby shouldn't do anything dangerous."
   - "An adult should be in the room with the baby if the baby is awake."

@@ -13,6 +13,7 @@ source = { editable = "." }
 dependencies = [
     { name = "opencv-python" },
     { name = "pip" },
+    { name = "python-dotenv" },
     { name = "redis" },
     { name = "setuptools" },
     { name = "streamlit" },
@@ -30,6 +31,7 @@ dev = [
 requires-dist = [
     { name = "opencv-python", specifier = ">=4.11.0.86" },
     { name = "pip", specifier = ">=25.0.1" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "redis", specifier = ">=5.2.1" },
     { name = "setuptools", specifier = ">=75.8.2" },
     { name = "streamlit", specifier = ">=1.42.2" },
