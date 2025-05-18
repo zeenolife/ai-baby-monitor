@@ -1,0 +1,18 @@
+FROM python:3.12-slim-bookworm
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+COPY pyproject.toml pyproject.toml
+COPY uv.lock uv.lock
+COPY README.md README.md
+COPY src/ src/
+
+RUN uv sync --locked
+# https://github.com/astral-sh/uv/issues/2252
+RUN uv run pip install playsound  
+
+COPY . .
+
+# This Dockerfile is intended to be used as a base for other services,
+# so no CMD or ENTRYPOINT is specified here. 

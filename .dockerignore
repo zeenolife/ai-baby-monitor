@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv
+venv
+ENV
+env
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Docker files
+.dockerignore
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+docker-compose.*.yml
+
+# Environment files (should be passed at runtime, not built into image)
+.env
+*.env
+.env.*
+
+# Local configuration files
+*.local
+*.dev
+
+# OS generated files
+.DS_Store
+Thumbs.db 

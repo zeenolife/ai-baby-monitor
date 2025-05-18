@@ -1,0 +1,91 @@
+services:
+  redis:
+    image: redis:latest
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    networks:
+      - app-network
+
+  vllm:
+    image: vllm/vllm-openai:v0.8.4
+    command: >
+      --model ${LLM_MODEL_NAME}
+      --host 0.0.0.0
+      --port ${VLLM_PORT}
+      --enable-prefix-caching
+      --quantization awq_marlin
+      --limit-mm-per-prompt image=5,video=5
+    ports:
+      - "${VLLM_PORT}:${VLLM_PORT}"
+    environment:
+      - VLLM_USE_V1=1
+      # - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1 # Request 1 GPU
+              capabilities: [gpu]
+    # vLLM takes a while to start up
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    ipc: host
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  python-base:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_started
+      vllm:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    volumes:
+      - ./scripts:/app/scripts
+      - ./configs:/app/configs
+      - ./src:/app/src
+
+  stream_to_redis:
+    extends:
+      service: python-base
+    command: >
+      sh -c "
+      uv run python scripts/stream_to_redis.py --config-file configs/living_room.yaml
+      "
+
+  run_watcher:
+    extends:
+      service: python-base
+    command: >
+      sh -c "
+      uv run python scripts/run_watcher.py --config-file configs/living_room.yaml
+      "
+
+  streamlit_viewer:
+    extends:
+      service: python-base
+    command: >
+      sh -c "
+      uv run streamlit run scripts/streamlit_viewer.py --server.port 8501 --server.address 0.0.0.0 -- --config-files configs/living_room.yaml
+      "
+    ports:
+      - "8501:8501"
+
+networks:
+  app-network:
+    driver: bridge
+

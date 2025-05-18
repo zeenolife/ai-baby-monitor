@@ -8,7 +8,6 @@ import yaml
 class RoomConfig:
     name: str
     camera_uri: str
-    llm_model_name: str
     instructions: list[str] = field(default_factory=list)
     subsampled_stream_maxlen: int = 64
     frame_width: int = 640
@@ -34,7 +33,6 @@ def load_room_config_file(config_path: str | Path) -> RoomConfig:
             # Required fields
             "name": data["name"],
             "camera_uri": data["camera"]["uri"],
-            "llm_model_name": data["llm"]["model_name"],
             "instructions": data.get("instructions", []),
             
             # Optional fields (only include if specified in YAML)

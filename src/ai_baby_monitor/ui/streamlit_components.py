@@ -1,5 +1,6 @@
 import datetime as dt
 import io
+import os
 
 import streamlit as st
 from PIL import Image
@@ -40,7 +41,7 @@ def display_sidebar(
             st.caption(f"Subsample rate: {selected_config.subsample_rate}")
         st.divider()
         with st.expander("LLM Model"):
-            st.caption(f"LLM Model: {selected_config.llm_model_name}")
+            st.caption(f"LLM Model: {os.getenv('LLM_MODEL_NAME')}")
 
 
 @st.cache_resource
@@ -86,6 +87,12 @@ def render_logs(logs: list[dict]):
         timestamp = log["timestamp"]
         alert_status = "🚨" if log["should_alert"] == "1" else "🟢"
         awareness_level = log["awareness_level"]
+        if awareness_level == "LOW":
+            awareness_level = f":green[{awareness_level}]"
+        elif awareness_level == "MEDIUM":
+            awareness_level = f":yellow[{awareness_level}]"
+        else:
+            awareness_level = f":red[{awareness_level}]"
         reasoning = log["reasoning"]
         with st.chat_message("ai"):
             st.write(f"Timestamp: {timestamp}")
