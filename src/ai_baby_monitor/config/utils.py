@@ -15,6 +15,9 @@ class RoomConfig:
     frame_height: int = 360
     subsample_rate: int = 4
 
+    def __str__(self):
+        return self.name
+
 
 def load_room_config_file(config_path: str | Path) -> RoomConfig:
     """Load a single room configuration from a specified YAML file"""

@@ -4,7 +4,7 @@ import numpy as np
 import redis
 import structlog
 
-from ai_baby_monitor.stream.camera_stream import Frame
+from ai_baby_monitor.stream import Frame
 
 logger = structlog.get_logger()
 
@@ -66,6 +66,18 @@ class RedisStreamHandler:
         except Exception as e:
             logger.error("Error deserializing frame", error=e)
             return None
+        
+    @staticmethod
+    def deserialize_log(log_data: dict) -> dict:
+        """Deserialize a log from Redis data."""
+        new_log_data = {}
+        for key, value in log_data.items():
+            if isinstance(key, bytes):
+                key = key.decode("utf-8")
+            if isinstance(value, bytes):
+                value = value.decode("utf-8")
+            new_log_data[key] = value
+        return new_log_data
 
     def add_frame(
         self, frame: Frame, key: str, maxlen: int, approximate: bool = True
@@ -98,9 +110,14 @@ class RedisStreamHandler:
         entry_id = self.redis_client.xadd(name=key, fields=log_data)
         return entry_id
 
-    def get_latest_entries(self, key: str, count: int = 1) -> list[tuple[bytes, dict]]:
+    def get_latest_entries(
+        self, key: str, count: int = 1, last_id: str | None = None
+    ) -> list[tuple[bytes, dict]]:
         """Get the latest entries from a Redis stream."""
-        return self.redis_client.xrevrange(name=key, count=count)
+        min_id = last_id if last_id else "-"
+        return self.redis_client.xrevrange(
+            name=key, max="+", min=min_id, count=count
+        )[::-1]
 
     def get_latest_frames(self, key: str, count: int = 1) -> list[Frame]:
         """Get the latest frames from the Redis stream."""
@@ -115,6 +132,8 @@ class RedisStreamHandler:
 
         return frames
 
-    def get_latest_logs(self, key: str, count: int = 1) -> list[dict]:
+    def get_latest_logs(
+        self, key: str, count: int = 1, last_log_id: str | None = None
+    ) -> list[dict]:
         """Get the latest logs from the Redis stream."""
-        return self.get_latest_entries(key=key, count=count)
+        return self.get_latest_entries(key=key, count=count, last_id=last_log_id)

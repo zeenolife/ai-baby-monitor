@@ -5,8 +5,8 @@ import structlog
 from openai import OpenAI
 from pydantic import BaseModel
 
-from ai_baby_monitor.stream.camera_stream import Frame
-from ai_baby_monitor.watcher.base_prompt import get_instructions_prompt
+from ai_baby_monitor.stream import Frame
+from ai_baby_monitor.watcher import get_instructions_prompt
 
 logger = structlog.get_logger()
 

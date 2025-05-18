@@ -4,7 +4,7 @@ from pathlib import Path
 
 import structlog
 
-from ai_baby_monitor import CameraStream, RedisStreamHandler
+from ai_baby_monitor.stream import CameraStream, RedisStreamHandler
 from ai_baby_monitor.config import load_room_config_file
 
 logger = structlog.get_logger()

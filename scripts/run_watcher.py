@@ -5,7 +5,8 @@ from pathlib import Path
 import structlog
 from playsound import playsound
 
-from ai_baby_monitor import RedisStreamHandler, Watcher
+from ai_baby_monitor.stream import RedisStreamHandler
+from ai_baby_monitor.watcher import Watcher
 from ai_baby_monitor.config import load_room_config_file
 
 logger = structlog.get_logger()
@@ -74,9 +75,6 @@ def run_watcher(
                 )
                 time.sleep(0.3)
                 continue
-
-            # Reverse frames to get chronological order (oldest first)
-            frames.reverse()
 
             logger.info("Analyzing frames from stream", num_frames=len(frames))
 

@@ -109,31 +109,35 @@ def test_get_latest_frames(
     frame_1_raw_data = {
         b"frame_bytes": sample_frame_data.tobytes(),
         b"timestamp": sample_frame.timestamp.isoformat().encode("utf-8"),
-        b"frame_idx": str(sample_frame.frame_idx).encode("utf-8"),
+        b"frame_idx": str(sample_frame.frame_idx).encode("utf-8"), # Corresponds to sample_frame, older
     }
     frame_2_raw_data = {
         b"frame_bytes": np.array([1, 2, 3], dtype=np.uint8).tobytes(),
         b"timestamp": dt.datetime(2023, 1, 1, 12, 0, 1, tzinfo=dt.timezone.utc)
         .isoformat()
         .encode("utf-8"),
-        b"frame_idx": b"101",
+        b"frame_idx": b"101", # Newer
     }
+    # xrevrange returns newest first. The [::-1] in get_latest_entries will reverse this.
     mock_redis_client.xrevrange.return_value = [
-        (b"entry_id_1", frame_1_raw_data),
-        (b"entry_id_2", frame_2_raw_data),
+        (b"entry_id_2", frame_2_raw_data), # Newest
+        (b"entry_id_1", frame_1_raw_data), # Older
     ]
 
     frames = redis_handler.get_latest_frames(key, count)
 
-    mock_redis_client.xrevrange.assert_called_once_with(name=key, count=count)
-    assert len(frames) == 2
+    mock_redis_client.xrevrange.assert_called_once_with(
+        name=key, count=count, max="+", min="-"
+    )
+    assert len(frames) == count
 
-    # Check first frame (corresponds to sample_frame)
+    # Assertions expect oldest first because get_latest_entries reverses the xrevrange result.
+    # Check first frame (corresponds to sample_frame / frame_1_raw_data)
     assert np.array_equal(frames[0].frame_data, sample_frame.frame_data)
     assert frames[0].timestamp == sample_frame.timestamp
     assert frames[0].frame_idx == sample_frame.frame_idx
 
-    # Check second frame
+    # Check second frame (corresponds to frame_2_raw_data)
     assert np.array_equal(frames[1].frame_data, np.array([1, 2, 3], dtype=np.uint8))
     assert frames[1].timestamp == dt.datetime(
         2023, 1, 1, 12, 0, 1, tzinfo=dt.timezone.utc
@@ -158,16 +162,24 @@ def test_get_latest_entries(
     """Test getting the latest generic entries from Redis."""
     key = "generic_stream"
     count = 5
-    mock_return_data = [
-        (b"id1", {b"field1": b"value1"}),
-        (b"id2", {b"field2": b"value2"}),
+    # This is the order the test expects *after* [::-1] is applied by get_latest_entries
+    mock_return_data_final_expected_order = [
+        (b"id1", {b"field1": b"value1"}), # Oldest
+        (b"id2", {b"field2": b"value2"}), # Newest
     ]
-    mock_redis_client.xrevrange.return_value = mock_return_data
+    # xrevrange itself returns newest first. The [::-1] in get_latest_entries will reverse this.
+    mock_redis_client.xrevrange.return_value = [
+        (b"id2", {b"field2": b"value2"}),  # Newest
+        (b"id1", {b"field1": b"value1"}), # Oldest
+    ]
 
     entries = redis_handler.get_latest_entries(key, count)
 
-    mock_redis_client.xrevrange.assert_called_once_with(name=key, count=count)
-    assert entries == mock_return_data
+    mock_redis_client.xrevrange.assert_called_once_with(
+        name=key, count=count, max="+", min="-"
+    )
+    # This assertion checks the final output of get_latest_entries, which should be oldest first.
+    assert entries == mock_return_data_final_expected_order
 
 
 def test_get_latest_logs(
@@ -176,15 +188,24 @@ def test_get_latest_logs(
     """Test getting the latest logs, which uses get_latest_entries."""
     key = "log_stream_for_get"
     count = 3
-    mock_log_data = [
-        (b"log_id_1", {b"timestamp": b"ts1", b"message": b"Log 1"}),
-        (b"log_id_2", {b"timestamp": b"ts2", b"message": b"Log 2"}),
-    ]
     # Configure the mock for the specific call by get_latest_entries
-    mock_redis_client.xrevrange.return_value = mock_log_data
+    # xrevrange returns newest first. The [::-1] in get_latest_entries will reverse this.
+    mock_log_data_xrevrange_order = [
+        (b"log_id_2", {b"timestamp": b"ts2", b"message": b"Log 2"}), # Newest
+        (b"log_id_1", {b"timestamp": b"ts1", b"message": b"Log 1"}), # Oldest
+    ]
+    mock_redis_client.xrevrange.return_value = mock_log_data_xrevrange_order
 
     logs = redis_handler.get_latest_logs(key, count)
 
     # get_latest_logs calls get_latest_entries, which calls xrevrange
-    mock_redis_client.xrevrange.assert_called_once_with(name=key, count=count)
-    assert logs == mock_log_data
+    mock_redis_client.xrevrange.assert_called_once_with(
+        name=key, count=count, max="+", min="-"
+    )
+
+    # The final logs list from get_latest_logs (via get_latest_entries) should be oldest first.
+    expected_logs_final_order = [
+        (b"log_id_1", {b"timestamp": b"ts1", b"message": b"Log 1"}),
+        (b"log_id_2", {b"timestamp": b"ts2", b"message": b"Log 2"}),
+    ]
+    assert logs == expected_logs_final_order

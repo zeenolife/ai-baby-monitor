@@ -1,20 +1,18 @@
 import argparse
-import io
-import time
 
 import streamlit as st
 import structlog
-from PIL import Image
 
-from ai_baby_monitor import RedisStreamHandler
 from ai_baby_monitor.config import load_multiple_room_configs
+from ai_baby_monitor.ui import (
+    display_sidebar,
+    fetch_logs,
+    get_cached_redis_handler,
+    get_last_image_with_timestamp,
+    render_logs,
+)
 
 logger = structlog.get_logger()
-# Set page config
-st.set_page_config(
-    page_title="Baby Monitor Stream Viewer",
-    page_icon="👶",
-)
 
 
 def parse_args():
@@ -26,97 +24,73 @@ def parse_args():
         required=True,
         help="Paths to room configuration YAML files",
     )
-    parser.add_argument("--redis-host", default="localhost", help="Redis host")
-    parser.add_argument("--redis-port", type=int, default=6379, help="Redis port")
 
     return parser.parse_known_args()[0]
 
-args = parse_args()
 
-redis_handler = RedisStreamHandler(
-    redis_host=args.redis_host,
-    redis_port=args.redis_port,
+REDIS_HOST = "localhost"
+REDIS_PORT = 6379
+
+
+st.set_page_config(
+    page_title="Baby Monitor Stream Viewer",
+    page_icon="👶",
 )
 
-room_configs = load_multiple_room_configs(args.config_files)
-if not room_configs:
-    st.error("No valid room configurations found. Please check the config files.")
+# Storing room configs in state to avoid reparsing
+if "room_configs" not in st.session_state:
+    args = parse_args()
+    room_configs = load_multiple_room_configs(args.config_files)
+    if not room_configs:
+        st.error("No room config file was provided.")
+    st.session_state["room_configs"] = room_configs
+
+redis_handler = get_cached_redis_handler(REDIS_HOST, REDIS_PORT)
+
+# Sidebar has a side-effect of setting selected config and real-time stream vs historic logs
+display_sidebar(room_configs_key="room_configs", config_key="selected_config")
+selected_config = st.session_state["selected_config"]
 
 
-
-def main():
-
-    room_names = list(room_configs.keys())
-    default_room = room_names[0]
-
-    # App title and description
+if st.session_state["selected_mode"] == "Real-time stream":
     st.title("Baby Monitor Stream Viewer")
 
-    # Sidebar for configuration
-    with st.sidebar:
-        st.header("Room Configuration")
-
-        selected_room_name = st.selectbox(
-            "Select Room",
-            options=room_names,
-            index=room_names.index(default_room),
-        )
-
-        # Display config summary
-        if selected_room_name and selected_room_name in room_configs:
-            selected_config = room_configs[selected_room_name]
-            st.caption("Instructions:")
-            for instruction in selected_config.instructions:
-                st.markdown(f"- {instruction}")
-            st.divider()
-            with st.expander("Camera details"):
-                st.caption(f"Camera URI:  {selected_config.camera_uri}")
-                st.caption(f"Frame width: {selected_config.frame_width}")
-                st.caption(f"Frame height: {selected_config.frame_height}")
-                st.caption(f"Subsample rate: {selected_config.subsample_rate}")
-            st.divider()
-            with st.expander("LLM Model"):
-                st.caption(f"LLM Model: {selected_config.llm_model_name}")
-
-    # Create placeholder for the video stream
+    # Placeholders for the stream and logs
     stream_placeholder = st.empty()
-    info_placeholder = st.empty()
+    log_placeholder = st.empty()
 
-    # Main display loop
     while True:
-        # Get the latest frame
-        frames = redis_handler.get_latest_frames(
-            f"{selected_room_name}:realtime", count=1
-        )
-
-        if not frames:
-            with stream_placeholder.container():
-                st.warning("No frames available in the stream")
-            time.sleep(0.01)
-            continue
-
-        frame = frames[0]
-
-        # Display the frame - decode the JPEG data first
-        try:
-            # Convert the numpy array containing JPEG data to bytes
-            jpeg_bytes = bytes(frame.frame_data)
-
-            # Open the JPEG bytes as an image
-            image = Image.open(io.BytesIO(jpeg_bytes))
-
-            with stream_placeholder.container():
+        with stream_placeholder.container():
+            image, timestamp = get_last_image_with_timestamp(
+                redis_handler, selected_config.name
+            )
+            if image:
                 st.image(image, use_container_width=True)
+                with st.expander("Frame Info"):
+                    st.caption(f"Timestamp: {timestamp}")
 
 
-            with info_placeholder.container():
-                st.text(info_text)
+        with log_placeholder.container(height=350):
+            with st.expander("LLM Logs", expanded=True, icon="🤖"):
+                
+                logs = fetch_logs(
+                    redis_handler,
+                    selected_config.name,
+                    num_logs=1,
+                )
+                
+                render_logs(logs)
 
-        except Exception as e:
-            logger.error("Error displaying frame", error=e)
-            with stream_placeholder.container():
-                st.error(f"Error displaying frame: {e}")
-            time.sleep(0.01)
+else:
+    st.title("Baby Monitor Logs Viewer")
 
-
-main()
+    num_logs = st.number_input(
+        "Number of latest logs to fetch",
+        min_value=1,
+        value=100,
+        step=1,
+    )
+    if st.button("Fetch logs", type="primary"):
+        logs = fetch_logs(redis_handler, selected_config.name, num_logs=num_logs)[::-1]
+        with st.container(height=800):
+            render_logs(logs)

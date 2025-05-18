@@ -4,7 +4,7 @@ camera:
   uri: "1"
 
 llm:
-  model_name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  model_name: "Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
 
 instructions:
   - "The baby shouldn't do anything dangerous."
