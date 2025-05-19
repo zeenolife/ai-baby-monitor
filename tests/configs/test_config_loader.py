@@ -16,7 +16,6 @@ def test_load_room_config_file_with_optional_fields(tmp_path: Path):
             "subsampled_stream_maxlen": 100,
             "subsample_rate": 8,
         },
-        "llm": {"model_name": "custom_model"},
         "instructions": ["custom instruction"],
     }
 
@@ -28,7 +27,6 @@ def test_load_room_config_file_with_optional_fields(tmp_path: Path):
     # Check required fields
     assert config.name == "custom_room"
     assert config.camera_uri == "rtsp://example.com/stream"
-    assert config.llm_model_name == "custom_model"
     assert config.instructions == ["custom instruction"]
 
     # Check optional fields are loaded correctly
@@ -49,7 +47,6 @@ def test_load_room_config_file_with_partial_optional_fields(tmp_path: Path):
             # Only specify frame_width, leaving other optional fields as defaults
             "frame_width": 800,
         },
-        "llm": {"model_name": "test_model"},
     }
 
     config_path = tmp_path / "partial_room.yaml"

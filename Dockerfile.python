@@ -8,9 +8,7 @@ COPY uv.lock uv.lock
 COPY README.md README.md
 COPY src/ src/
 
-RUN uv sync --locked
-# https://github.com/astral-sh/uv/issues/2252
-RUN uv run pip install playsound  
+RUN uv sync --locked 
 
 COPY . .
 

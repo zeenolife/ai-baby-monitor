@@ -67,14 +67,6 @@ services:
       uv run python scripts/stream_to_redis.py --config-file configs/living_room.yaml
       "
 
-  run_watcher:
-    extends:
-      service: python-base
-    command: >
-      sh -c "
-      uv run python scripts/run_watcher.py --config-file configs/living_room.yaml
-      "
-
   streamlit_viewer:
     extends:
       service: python-base

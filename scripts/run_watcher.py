@@ -5,7 +5,7 @@ from pathlib import Path
 
 import structlog
 from dotenv import load_dotenv
-from playsound import playsound
+from playsound3 import playsound
 
 from ai_baby_monitor.config import load_room_config_file
 from ai_baby_monitor.stream import RedisStreamHandler
