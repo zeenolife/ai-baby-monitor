@@ -14,9 +14,9 @@ from ai_baby_monitor.watcher import Watcher
 logger = structlog.get_logger()
 
 load_dotenv()
-REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_HOST = "localhost"
 REDIS_PORT = os.getenv("REDIS_PORT")
-VLLM_HOST = os.getenv("VLLM_HOST")
+VLLM_HOST = "localhost"
 VLLM_PORT = os.getenv("VLLM_PORT")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME")
 
