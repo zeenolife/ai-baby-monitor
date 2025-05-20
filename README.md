@@ -15,15 +15,11 @@ Obviously, I'm not going to put my child in danger just for the demo, so here're
 <table width="100%">
   <tr>
     <td align="center" width="65%">
-      <video src="assets/demo_phone.mp4" height="350px" style="max-width: 100%;" controls autoplay loop muted>
-        Your browser does not support the video tag.
-      </video><br/>
+      <img src="assets/demo_phone.gif" height="300"><br/>
       <sub>📵 "No smartphones" rule – alert fired</sub>
     </td>
     <td align="center" width="35%">
-      <video src="assets/demo_baby.mp4" height="350px" style="max-width: 100%;" controls autoplay loop muted>
-        Your browser does not support the video tag.
-      </video><br/>
+      <img src="assets/demo_baby.gif" height="300"><br/>
       <sub>👶 Baby walking – no alert</sub>
     </td>
   </tr>
