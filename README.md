@@ -4,8 +4,9 @@
 
 > **Your second pair of eyes, powered by local video LLMs. Because, you know... it does take a village.**
 
-The **AI Baby Monitor** watches a video stream (webcam, RTSP camera,  …) and a simple list of safety rules. If a rule is broken it issues a *single* gentle beep so you can quickly glance at your baby to check in on them.
+The **AI Baby Monitor** watches a video stream (webcam, RTSP camera,  …) and a simple list of safety rules. If a rule is broken it issues a *single* gentle beep so you can quickly glance over and check on your baby.
 
+---
 
 ## 📸 Demo
 Obviously, I'm not going to put my child in danger just for the demo, so here're videos of:
@@ -29,15 +30,15 @@ Obviously, I'm not going to put my child in danger just for the demo, so here're
 
 ## ✨ Features
 
-|                       |                                                                                                                 |   |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------| - |
-| 🛡️ **Private‑first**  | Everything runs locally; nothing ever leaves your network.                                                      |   |
-| ⚡  **Realtime-ish**   | Works on consumer GPUs at ~1 req/s.                                                                             |   |
-| 🦾 **Video LLM**      | Uses the [Qwen2.5 VL](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct-AWQ) by default, served through vLLM.  |   |
-| 🔔 **One beep alert** | Deliberately minimal & quiet  —  just look when it beeps.                                                       |   |
-| 🖥 **Live dashboard** | Streamlit viewer shows the live stream + LLM reasoning logs in real time.                                       |   |
-| 📝 **Easy rules**     | "The baby shouldn’t climb out of the crib", "Baby should always be accompanied by adult" … just edit YAML.      |   |
-| 🏘️ **Multi-rooms**    | Supports multiple rooms. Just add another YAML with instructions.                                               |   |
+|                       |                                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------|
+| 🛡️ **Private‑first**  | Everything runs locally; nothing ever leaves your network.                                                      |
+| ⚡  **Realtime-ish**   | Works on consumer GPUs at ~1 req/s.                                                                             |
+| 🦾 **Video LLM**      | Uses the [Qwen2.5 VL](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct-AWQ) by default, served through vLLM.  |
+| 🔔 **One beep alert** | Deliberately minimal & quiet  —  just look when it beeps.                                                       |
+| 🖥 **Live dashboard** | Streamlit viewer shows the live stream + LLM reasoning logs in real time.                                       |
+| 📝 **Easy rules**     | "The baby shouldn’t climb out of the crib", "Baby should always be accompanied by adult" … just edit YAML.      |
+| 🏘️ **Multi-rooms**    | Supports multiple rooms. Just add another YAML with instructions.                                               |
 
 ---
 
